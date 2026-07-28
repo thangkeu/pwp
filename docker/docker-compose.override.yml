@@ -1,0 +1,14 @@
+# Override cho DEVELOPMENT local — Docker Compose tự động load file này cùng docker-compose.yml.
+# Mục đích: hot-reload code Gateway, cho phép chạy không cần Redis (InMemoryTransport) khi cần
+# vòng lặp dev nhanh; đổi EVENT_BUS_DRIVER=redis khi muốn test hành vi giống production.
+
+services:
+  gateway:
+    build:
+      target: development
+    volumes:
+      - ./gateway:/app
+      - /app/node_modules
+    environment:
+      EVENT_BUS_DRIVER: ${EVENT_BUS_DRIVER:-memory}
+    command: ["npm", "run", "dev"]

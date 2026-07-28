@@ -1,0 +1,39 @@
+# PWP Docker Compose — Sprint 0.3 (Foundation bổ sung)
+# LƯU Ý: nếu repo thực tế đã có docker-compose.yml từ Sprint 0.1–0.2 (Postgres, GAS config...),
+# GỘP nội dung service `gateway` và `redis` dưới đây vào file đó thay vì ghi đè.
+# File này độc lập chạy được cho mục đích test Sprint 0.3 (Gateway + Redis Event Bus).
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: pwp_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - pwp_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  gateway:
+    build:
+      context: ./gateway
+    container_name: pwp_gateway
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      EVENT_BUS_DRIVER: ${EVENT_BUS_DRIVER:-redis}
+      REDIS_URL: redis://redis:6379
+      GATEWAY_API_KEY: ${GATEWAY_API_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  pwp_redis_data:
