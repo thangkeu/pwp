@@ -1,25 +1,28 @@
-name: PWP Gateway CI/CD
+name: PWP CI/CD (Gateway + AI Services)
 
 on:
   push:
     branches: [main, develop]
     paths:
       - 'docker/gateway/**'
+      - 'docker/ai-services/parser-service/**'
+      - 'docker/ai-services/metadata-service/**'
       - '.github/workflows/ci-cd.yml'
   pull_request:
     branches: [main, develop]
     paths:
       - 'docker/gateway/**'
+      - 'docker/ai-services/parser-service/**'
+      - 'docker/ai-services/metadata-service/**'
       - '.github/workflows/ci-cd.yml'
-
-defaults:
-  run:
-    working-directory: docker/gateway
 
 jobs:
   lint-and-test:
-    name: Lint + Unit/Integration Test
+    name: Lint + Unit/Integration Test (Gateway)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docker/gateway
     steps:
       - uses: actions/checkout@v4
 
@@ -43,6 +46,90 @@ jobs:
         with:
           name: gateway-coverage
           path: docker/gateway/coverage
+
+  lint-and-test-parser-service:
+    name: Lint + Unit/Integration Test (Parser Service)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docker/ai-services/parser-service
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: docker/ai-services/parser-service/requirements.txt
+
+      - name: Cài tesseract-ocr (bắt buộc cho ImageOcrAdapter)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-vie
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install ruff
+
+      - name: Lint (ruff)
+        run: ruff check app tests
+
+      - name: Unit + Integration Test
+        run: PYTHONPATH=. python -m pytest -v
+
+  lint-and-test-metadata-service:
+    name: Lint + Unit/Integration Test (Metadata Service)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docker/ai-services/metadata-service
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: docker/ai-services/metadata-service/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install ruff
+
+      - name: Lint (ruff)
+        run: ruff check app tests
+
+      - name: Unit + Integration Test
+        run: PYTHONPATH=. python -m pytest -v
+
+  build-image-metadata-service:
+    name: Build & Push Docker Image (Metadata Service)
+    needs: lint-and-test-metadata-service
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: docker/ai-services/metadata-service
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/pwp-metadata-service:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/pwp-metadata-service:latest
 
   build-image:
     name: Build & Push Docker Image
@@ -71,9 +158,36 @@ jobs:
             ghcr.io/${{ github.repository }}/pwp-gateway:${{ github.sha }}
             ghcr.io/${{ github.repository }}/pwp-gateway:latest
 
+  build-image-parser-service:
+    name: Build & Push Docker Image (Parser Service)
+    needs: lint-and-test-parser-service
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: docker/ai-services/parser-service
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/pwp-parser-service:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/pwp-parser-service:latest
+
   deploy-staging:
     name: Deploy to Staging (tự động)
-    needs: build-image
+    needs: [build-image, build-image-parser-service, build-image-metadata-service]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: staging
@@ -81,7 +195,9 @@ jobs:
       - name: Deploy staging
         run: |
           echo "TODO Sprint sau: thay bằng lệnh deploy staging thật (ssh/compose pull/up -d)."
-          echo "Image: ghcr.io/${{ github.repository }}/pwp-gateway:${{ github.sha }}"
+          echo "Gateway image: ghcr.io/${{ github.repository }}/pwp-gateway:${{ github.sha }}"
+          echo "Parser image:  ghcr.io/${{ github.repository }}/pwp-parser-service:${{ github.sha }}"
+          echo "Metadata image: ghcr.io/${{ github.repository }}/pwp-metadata-service:${{ github.sha }}"
 
   deploy-production:
     name: Deploy to Production (cần Manual Approval)

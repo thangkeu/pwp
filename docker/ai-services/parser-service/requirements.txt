@@ -1,0 +1,21 @@
+# PWP Document Parser Service — pin version chính để reproducible build (Docker image).
+fastapi==0.140.7
+uvicorn[standard]==0.51.0
+python-multipart==0.0.32
+pdfplumber==0.11.10
+python-docx==1.2.0
+openpyxl==3.1.5
+python-pptx==1.0.2
+pytesseract==0.3.13
+pillow==12.3.0
+beautifulsoup4==4.15.0
+Markdown==3.10.2
+pydantic==2.13.4
+
+# --- Sprint 1.1b: CAD/Visio/Draw.io ---
+ezdxf==1.4.4      # đọc DXF (CAD, định dạng mở); DWG (nhị phân độc quyền) KHÔNG hỗ trợ trực tiếp
+vsdx==0.6.1        # đọc Visio .vsdx (OOXML-based, giống cấu trúc docx/pptx)
+
+# --- Test-only (không cần trong production image, tách riêng nếu build image tối ưu) ---
+pytest==9.1.1
+httpx==0.28.1

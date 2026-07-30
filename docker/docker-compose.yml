@@ -1,7 +1,7 @@
-# PWP Docker Compose — Sprint 0.3 (Foundation bổ sung)
+# PWP Docker Compose — Sprint 0.3 (Redis/Gateway) + Sprint 1.1 (Parser Service)
 # LƯU Ý: nếu repo thực tế đã có docker-compose.yml từ Sprint 0.1–0.2 (Postgres, GAS config...),
-# GỘP nội dung service `gateway` và `redis` dưới đây vào file đó thay vì ghi đè.
-# File này độc lập chạy được cho mục đích test Sprint 0.3 (Gateway + Redis Event Bus).
+# GỘP nội dung các service dưới đây vào file đó thay vì ghi đè.
+# File này độc lập chạy được cho mục đích test Sprint 0.3+1.1 (Gateway + Redis + Parser Service).
 
 services:
   redis:
@@ -34,6 +34,41 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+
+  parser-service:
+    build:
+      context: ./ai-services/parser-service
+    container_name: pwp_parser_service
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      PARSER_OCR_LANGUAGES: ${PARSER_OCR_LANGUAGES:-eng+vie}
+      PARSER_MAX_UPLOAD_MB: ${PARSER_MAX_UPLOAD_MB:-50}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  metadata-service:
+    build:
+      context: ./ai-services/metadata-service
+    container_name: pwp_metadata_service
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    environment:
+      METADATA_MAX_TEXT_LENGTH_MB: ${METADATA_MAX_TEXT_LENGTH_MB:-5}
+      # Đường dẫn tuỳ chọn tới dictionary tuỳ biến (khách hàng/dự án/vendor thật của công ty) —
+      # mount volume riêng nếu muốn override, để trống dùng danh sách mặc định trong code.
+      METADATA_CUSTOMER_DICT_PATH: ${METADATA_CUSTOMER_DICT_PATH:-}
+      METADATA_PROJECT_DICT_PATH: ${METADATA_PROJECT_DICT_PATH:-}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
 volumes:
   pwp_redis_data:

@@ -1,0 +1,12 @@
+# Line dài hơn mặc định 88 vì comment nghiệp vụ tiếng Việt (khuyến khích theo CODING_STANDARDS)
+# thường dài hơn tiếng Anh — ưu tiên rõ ràng cho Presales/non-dev đọc hơn là ép ngắn gọn.
+line-length = 120
+
+[lint]
+select = ["E", "F", "B", "UP"]
+ignore = [
+  "B008", # FastAPI dùng File(...)/Depends(...) làm default argument là idiom chuẩn, không phải bug.
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["B011"]
